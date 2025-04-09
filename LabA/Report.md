@@ -28,7 +28,15 @@
 
 ## Assignment2
 
+1. `stack run -- +RTS -lf -N4 `
 
+   Chose to parallelize mergesort and quicksorts. 
+
+   | <img src="./report_img/sequential_mergesort.png" alt="sequential_mergesort" style="zoom:50%;" /> | <img src="./report_img/parallel_mergesort.png" alt="parallel_mergesort" style="zoom:50%;" /> |
+   | ------------------------------------------------------------ | ------------------------------------------------------------ |
+   | <img src="./report_img/sequential_quicksort.png" alt="sequential_quicksort" style="zoom:50%;" /> | <img src="./report_img/parallel_quicksort.png" alt="parallel_quicksort" style="zoom:50%;" /> |  
+
+   As can be seen, run time stastistics significantly improved after running the alogirthms in parallel using the Par Monad.
 
 ## Assignment3
 
