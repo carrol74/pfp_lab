@@ -76,11 +76,11 @@
 
    Experiment by `stack run encrypt /usr/share/dict/words >/dev/null -- +RTS -lf `
 
-   ![assign3-1](/Users/huyushu/Documents/ALG-3/pfp/pfp_lab/LabA/assign3/assign3-1.png)
+   ![assign3-1](./report_img/assign3-1.png)
 
    `parBuffer`
 
-   ![assign3-2](/Users/huyushu/Documents/ALG-3/pfp/pfp_lab/LabA/assign3/assign3-2.png)
+   ![assign3-2](./report_img/assign3-2.png)
 
    While `parList` creates sparks for all list elements immediately upon evaluation, `parBuffer` maintains a fixed-size of active sparks. 
 
