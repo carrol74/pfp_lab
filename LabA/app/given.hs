@@ -4,10 +4,14 @@ import Criterion.Main
 import Control.Parallel
 import Control.Parallel.Strategies
 import Control.Monad.Par
+import Control.DeepSeq --need deepseq for force function --> needed for sorting algorithms due to lists being lazy structures
+
 
 -- code borrowed from the Stanford Course 240h (Functional Systems in Haskell)
 -- I suspect it comes from Bryan O'Sullivan, author of Criterion
 
+
+-- Assignment 1
 data T a = T !a !Int
 
 
@@ -66,6 +70,93 @@ parMapPar f xs = runPar $ do
 
 crud = zipWith (\x a -> sin (x / 300)**2 + a) [0..]
 
+
+-- Assignment 2 (Mergesort and Quicksort)
+
+-- | Divide and Conquer skeleton using Par Monad (Generic for MergeSort)
+divConq :: (NFData b) =>
+           (a -> Bool)         -- ^ isTrivial
+        -> (a -> Bool)         -- ^ belowThreshold
+        -> (a -> (a, a))       -- ^ divide
+        -> (a -> b)            -- ^ solve
+        -> ((b, b) -> b)       -- ^ combine
+        -> a                   -- ^ input
+        -> b
+
+divConq isTrivial belowThreshold divide solve combine input
+  | isTrivial input = solve input
+  | belowThreshold input = let (l, r) = divide input in combine (solve l, solve r)
+  | otherwise = runPar $ do
+      let (l, r) = divide input
+      let lv = force (divConq isTrivial belowThreshold divide solve combine l)
+      let rv = force (divConq isTrivial belowThreshold divide solve combine r)
+      iv <- spawn (return lv)
+      jv <- spawn (return rv)
+      lv' <- get iv
+      rv' <- get jv
+      return $ combine (lv', rv')
+
+-- | Sequential merge sort
+mergeSort :: Ord a => [a] -> [a]
+mergeSort xs
+  | length xs < 2 = xs
+  | otherwise     = merge (mergeSort ys) (mergeSort zs)
+  where
+    (ys, zs) = splitAt (length xs `div` 2) xs
+
+-- | Parallel merge sort using generic divConq
+parMergeSort :: (NFData a, Ord a) => Int -> [a] -> [a]
+parMergeSort n = divConq
+  (\xs -> length xs < 2)                      -- trivial
+  (\xs -> length xs < n)                      -- below threshold
+  (\xs -> splitAt (length xs `div` 2) xs)     -- divide
+  mergeSort                                   -- solve
+  (\(l, r) -> merge l r)                      -- combine
+
+-- | Merge helper
+merge :: Ord a => [a] -> [a] -> [a]
+merge [] ys = ys
+merge xs [] = xs
+merge (x:xs) (y:ys)
+  | x <= y    = x : merge xs (y:ys)
+  | otherwise = y : merge (x:xs) ys
+
+-- | Divide and Conquer skeleton for QuickSort (custom for pivot)
+divConqQuick :: (NFData a, Ord a)
+             => Int            -- ^ threshold
+             -> ([a] -> [a])   -- ^ sequential fallback
+             -> [a]            -- ^ input
+             -> [a]
+  
+divConqQuick _ solve []  = []
+divConqQuick _ solve [x] = [x]
+divConqQuick n solve (x:xs)
+  | length xs < n = solve (x:xs)
+  | otherwise = runPar $ do
+      let lesser  = filter (<= x) xs
+      let greater = filter (> x) xs
+      let left  = force (divConqQuick n solve lesser)
+      let right = force (divConqQuick n solve greater)
+      iv <- spawn (return left)
+      jv <- spawn (return right)
+      l <- get iv
+      r <- get jv
+      return (l ++ [x] ++ r)
+
+-- | Sequential quicksort
+quickSort :: Ord a => [a] -> [a]
+quickSort []     = []
+quickSort (x:xs) = quickSort lesser ++ [x] ++ quickSort greater
+  where
+    lesser  = filter (<= x) xs
+    greater = filter (> x) xs
+
+-- | Parallel quicksort using divConqQuick
+parQuickSort :: (NFData a, Ord a) => Int -> [a] -> [a]
+parQuickSort threshold = divConqQuick threshold quickSort
+
+
+
 main = do
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
@@ -77,6 +168,9 @@ main = do
   let j = jackknife mean rs :: [Float]
   putStrLn $ "jack mean min:  " ++ show (minimum j)
   putStrLn $ "jack mean max:  " ++ show (maximum j)
+
+  let threshold = 5000
+  let input = take 100000 (randoms (mkStdGen 42)) :: [Int]
   defaultMain
         [
          bench "jackknife" (nf (jackknife  mean) rs),
@@ -84,5 +178,9 @@ main = do
          bench "jackknife Eval Monad" (nf (parJackknife parMapEval mean) rs),
          bench "jackknife Built-in" (nf (parJackknife parMapBuiltIn mean) rs),
          bench "jackknife Strategy" (nf (parJackknife parMapStrategy mean) rs),
-         bench "jackknife Par Monad" (nf (parJackknife parMapPar mean) rs)
+         bench "jackknife Par Monad" (nf (parJackknife parMapPar mean) rs),
+         bench "Sequential MergeSort" (nf mergeSort input),
+         bench "Parallel MergeSort (divConq)" (nf (parMergeSort threshold) input), 
+         bench "Sequential QuickSort" (nf quickSort input), 
+         bench "Parallel QuickSort (divConqQuick)" (nf (parQuickSort threshold) input)
          ]

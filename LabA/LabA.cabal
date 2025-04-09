@@ -36,6 +36,7 @@ library
   build-depends:
       base >=4.7 && <5
     , criterion
+    , deepseq
     , monad-par
     , parallel
     , random
@@ -54,6 +55,7 @@ executable LabA-exe
       LabA
     , base >=4.7 && <5
     , criterion
+    , deepseq
     , monad-par
     , parallel
     , random
@@ -73,6 +75,7 @@ test-suite LabA-test
       LabA
     , base >=4.7 && <5
     , criterion
+    , deepseq
     , monad-par
     , parallel
     , random
