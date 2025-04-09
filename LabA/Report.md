@@ -4,27 +4,27 @@
 
 1. `stack run -- +RTS -lf -N4 -s`
 
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408095600189.png" alt="image-20250408095600189" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408095620877.png" alt="image-20250408095620877" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408095600189.png" alt="image-20250408095600189" style="zoom:50%;" /> | <img src="./report_img/image-20250408095620877.png" alt="image-20250408095620877" style="zoom:50%;" /> |
    | ------------------------------------------------------------ | ------------------------------------------------------------ |
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408095702540.png" alt="image-20250408095702540" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408100937370.png" alt="image-20250408100937370" style="zoom:50%;" /> |
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408100947466.png" alt="image-20250408100947466" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408100957235.png" alt="image-20250408100957235" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408095702540.png" alt="image-20250408095702540" style="zoom:50%;" /> | <img src="./report_img/image-20250408100937370.png" alt="image-20250408100937370" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408100947466.png" alt="image-20250408100947466" style="zoom:50%;" /> | <img src="./report_img/image-20250408100957235.png" alt="image-20250408100957235" style="zoom:50%;" /> |
 
    It is obvious that the parallel map functions did not speed up the progress. 
 
    When we check the event log, we can see that the GC (Garbage Collection) part limited the parallel speedup.
 
-   <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408100614926.png" alt="image-20250408100614926" style="zoom:50%;" />
+   <img src="./report_img/image-20250408100614926.png" alt="image-20250408100614926" style="zoom:50%;" />
 
 2. `stack run -- +RTS -lf -N4 -s -A100M`
 
    After trying to set a large memory allocation with the "+RTS -A100M" flag, we observed that the parallel functions indeed accelerated the map process. This confirms that garbage collection was the bottleneck limiting our parallel speedup.
 
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101613621.png" alt="image-20250408101613621" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101624921.png" alt="image-20250408101624921" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408101613621.png" alt="image-20250408101613621" style="zoom:50%;" /> | <img src="./report_img/image-20250408101624921.png" alt="image-20250408101624921" style="zoom:50%;" /> |
    | ------------------------------------------------------------ | ------------------------------------------------------------ |
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101656135.png" alt="image-20250408101656135" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101705926.png" alt="image-20250408101705926" style="zoom:50%;" /> |
-   | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101715106.png" alt="image-20250408101715106" style="zoom:50%;" /> | <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408101751729.png" alt="image-20250408101751729" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408101656135.png" alt="image-20250408101656135" style="zoom:50%;" /> | <img src="./report_img/image-20250408101705926.png" alt="image-20250408101705926" style="zoom:50%;" /> |
+   | <img src="./report_img/image-20250408101715106.png" alt="image-20250408101715106" style="zoom:50%;" /> | <img src="./report_img/image-20250408101751729.png" alt="image-20250408101751729" style="zoom:50%;" /> |
 
-   <img src="/Users/huyushu/Library/Application Support/typora-user-images/image-20250408102043316.png" alt="image-20250408102043316" style="zoom:50%;" />
+   <img src="report_img/image-20250408102043316.png" alt="image-20250408102043316" style="zoom:50%;" />
 
 ## Assignment2
 
