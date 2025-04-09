@@ -121,10 +121,10 @@ merge (x:xs) (y:ys)
   | x <= y    = x : merge xs (y:ys)
   | otherwise = y : merge (x:xs) ys
 
--- | Divide and Conquer skeleton for QuickSort (custom for pivot)
+-- | Divide and Conquer skeleton for QuickSort (note: given skeleton didnt really work due to the differences in how the original list is divided)
 divConqQuick :: (NFData a, Ord a)
              => Int            -- ^ threshold
-             -> ([a] -> [a])   -- ^ sequential fallback
+             -> ([a] -> [a])   -- ^ solve sequentially
              -> [a]            -- ^ input
              -> [a]
   
@@ -133,7 +133,7 @@ divConqQuick _ solve [x] = [x]
 divConqQuick n solve (x:xs)
   | length xs < n = solve (x:xs)
   | otherwise = runPar $ do
-      let lesser  = filter (<= x) xs
+      let lesser  = filter (<= x) xs -- note x is used as pivot and hence 2 lists are made based on the pivot
       let greater = filter (> x) xs
       let left  = force (divConqQuick n solve lesser)
       let right = force (divConqQuick n solve greater)
@@ -158,6 +158,8 @@ parQuickSort threshold = divConqQuick threshold quickSort
 
 
 main = do
+
+--Assignment 1 Main
   let (xs,ys) = splitAt 1500  (take 6000
                                (randoms (mkStdGen 211570155)) :: [Float] )
   -- handy (later) to give same input different parallel functions
@@ -169,8 +171,11 @@ main = do
   putStrLn $ "jack mean min:  " ++ show (minimum j)
   putStrLn $ "jack mean max:  " ++ show (maximum j)
 
+-- Assignment 2 Main
   let threshold = 5000
   let input = take 100000 (randoms (mkStdGen 42)) :: [Int]
+
+--Benchmarking
   defaultMain
         [
          bench "jackknife" (nf (jackknife  mean) rs),
