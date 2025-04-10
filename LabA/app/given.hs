@@ -96,7 +96,7 @@ divConq isTrivial belowThreshold divide solve combine input
       rv' <- get jv
       return $ combine (lv', rv')
 
--- | Sequential merge sort
+-- Sequential merge sort
 mergeSort :: Ord a => [a] -> [a]
 mergeSort xs
   | length xs < 2 = xs
@@ -104,7 +104,7 @@ mergeSort xs
   where
     (ys, zs) = splitAt (length xs `div` 2) xs
 
--- | Parallel merge sort using generic divConq
+-- Parallel merge sort using generic divConq
 parMergeSort :: (NFData a, Ord a) => Int -> [a] -> [a]
 parMergeSort n = divConq
   (\xs -> length xs < 2)                      -- trivial
@@ -113,7 +113,7 @@ parMergeSort n = divConq
   mergeSort                                   -- solve
   (\(l, r) -> merge l r)                      -- combine
 
--- | Merge helper
+-- Merge helper
 merge :: Ord a => [a] -> [a] -> [a]
 merge [] ys = ys
 merge xs [] = xs
@@ -121,7 +121,7 @@ merge (x:xs) (y:ys)
   | x <= y    = x : merge xs (y:ys)
   | otherwise = y : merge (x:xs) ys
 
--- | Divide and Conquer skeleton for QuickSort (note: given skeleton didnt really work due to the differences in how the original list is divided)
+-- Divide and Conquer skeleton for QuickSort (note: given skeleton didnt really work due to the differences in how the original list is divided)
 divConqQuick :: (NFData a, Ord a)
              => Int            -- ^ threshold
              -> ([a] -> [a])   -- ^ solve sequentially
@@ -143,7 +143,7 @@ divConqQuick n solve (x:xs)
       r <- get jv
       return (l ++ [x] ++ r)
 
--- | Sequential quicksort
+-- Sequential quicksort
 quickSort :: Ord a => [a] -> [a]
 quickSort []     = []
 quickSort (x:xs) = quickSort lesser ++ [x] ++ quickSort greater
@@ -151,7 +151,7 @@ quickSort (x:xs) = quickSort lesser ++ [x] ++ quickSort greater
     lesser  = filter (<= x) xs
     greater = filter (> x) xs
 
--- | Parallel quicksort using divConqQuick
+-- Parallel quicksort using divConqQuick
 parQuickSort :: (NFData a, Ord a) => Int -> [a] -> [a]
 parQuickSort threshold = divConqQuick threshold quickSort
 
@@ -173,7 +173,7 @@ main = do
 
 -- Assignment 2 Main
   let threshold = 5000
-  let input = take 100000 (randoms (mkStdGen 42)) :: [Int]
+  let input = take 100000 (randoms (mkStdGen 211570155)) :: [Int]
 
 --Benchmarking
   defaultMain
