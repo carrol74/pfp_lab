@@ -260,7 +260,7 @@ solve_one(Ms) ->
         {Ref, {'EXIT', no_solution}} ->
             % Keep waiting for other solutions
             solve_one_collect(Ref, length(Ms) - 1);
-        {Ref, Solution} when not is_tuple(Solution) ->
+        {Ref, Solution} ->
             % Found a valid solution
             Solution
     end.
@@ -271,7 +271,7 @@ solve_one_collect(Ref, N) ->
     receive
         {Ref, {'EXIT', no_solution}} ->
             solve_one_collect(Ref, N - 1);
-        {Ref, Solution} when not is_tuple(Solution) ->
+        {Ref, Solution} ->
             Solution
     end.
 
