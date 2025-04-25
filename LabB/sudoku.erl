@@ -100,34 +100,6 @@ refine(M) ->
 refine_rows(M) ->
     lists:map(fun refine_row/1,M).
 
-% refine_rows(M) ->
-%     Parent = self(), 
-%     Ref = make_ref(),  % Create a unique reference for this batch of processes
-%     WithIndex = lists:zip(lists:seq(1, length(M)), M),
-    
-%     % Spawn processes that will handle their own errors
-%     [spawn_link(fun() -> 
-%         Result = (catch refine_row(Row)),
-%         case Result of
-%             {'EXIT', no_solution} ->
-%                 Parent ! {Ref, Index, no_solution};
-%             ValidRow ->
-%                 Parent ! {Ref, Index, {ok, ValidRow}}
-%         end
-%     end) || {Index, Row} <- WithIndex],
-    
-%     % Collect results and handle errors
-%     Results = [receive 
-%                    {Ref, I, no_solution} -> 
-%                        exit(no_solution);  % Propagate the error up
-%                    {Ref, I, {ok, Row}} -> 
-%                        {I, Row}
-%                end || _ <- M],
-    
-%     % Convert back to the expected format
-%     Sorted = lists:keysort(1, Results),
-%     [R || {_, R} <- Sorted].
-
 refine_row(Row) ->
     Entries = entries(Row),
     NewRow =
@@ -238,41 +210,170 @@ solve_refined(M) ->
 
 solve_one([]) ->
     exit(no_solution);
-% solve_one([M]) ->
-%     solve_refined(M);
-% solve_one([M|Ms]) ->
-%     case catch solve_refined(M) of
-% 	{'EXIT',no_solution} ->
-% 	    solve_one(Ms);
-% 	Solution ->
-% 	    Solution
-%     end.
+solve_one([M]) ->
+    solve_refined(M);
+solve_one([M|Ms]) ->
+    case catch solve_refined(M) of
+	{'EXIT',no_solution} ->
+	    solve_one(Ms);
+	Solution ->
+	    Solution
+    end.
 
-solve_one(Ms) ->
-    Parent = self(),
-    Ref = make_ref(),
-    [spawn_link(fun() ->
-        Result = (catch solve_refined(M)),
-        Parent ! {Ref, Result}
-    end) || M <- Ms],
+%% Worker pool management
 
+start_pool(N) ->
+    true = register(pool, spawn_link(fun() -> pool([worker() || _ <- lists:seq(1,N)]) end)).
+
+pool(Workers) ->
+    pool(Workers, Workers).
+
+pool(Workers, All) ->
     receive
-        {Ref, {'EXIT', no_solution}} ->
-            % Keep waiting for other solutions
-            solve_one_collect(Ref, length(Ms) - 1);
-        {Ref, Solution} ->
-            % Found a valid solution
+        {get_worker, Pid} ->
+            case Workers of
+                [] ->
+                    Pid ! {pool, no_worker},
+                    pool(Workers, All);
+                [W|Ws] ->
+                    Pid ! {pool, W},
+                    pool(Ws, All)
+            end;
+        {return_worker, W} ->
+            pool([W|Workers], All);
+        {stop, Pid} ->
+            [unlink(W) || W <- All],
+            [exit(W, kill) || W <- All],
+            unregister(pool),
+            Pid ! {pool, stopped}
+    end.
+
+worker() ->
+    spawn_link(fun work/0).
+
+work() ->
+    receive
+        {task, Pid, R, F} ->
+            Pid ! {R, F()},
+            pool ! {return_worker, self()},
+            work()
+    end.
+
+speculate_on_worker(F) ->
+    case whereis(pool) of
+        undefined ->
+            ok; %% we're stopping
+        Pool -> Pool ! {get_worker, self()}
+    end,
+    receive
+        {pool, no_worker} ->
+            {not_speculating, F};
+        {pool, W} ->
+            R = make_ref(),
+            W ! {task, self(), R, F},
+            {speculating, R}
+    end.
+
+worker_value_of({not_speculating, F}) ->
+    F();
+worker_value_of({speculating, R}) ->
+    receive
+        {R, X} ->
+            X
+    end.
+
+%% Parallel Sudoku solver using worker pool
+
+pool_solve(M) ->
+    start_pool(erlang:system_info(schedulers)-1),
+    Solution = pool_solve_refined(refine(fill(M))),
+    pool ! {stop, self()},
+    receive {pool, stopped} -> ok end,
+    case valid_solution(Solution) of
+        true ->
+            Solution;
+        false ->
+            exit({invalid_solution, Solution})
+    end.
+
+pool_solve_refined(M) ->
+    case solved(M) of
+        true ->
+            M;
+        false ->
+            pool_solve_one(guesses(M))
+    end.
+
+pool_solve_one([]) ->
+    exit(no_solution);
+pool_solve_one([M]) ->
+    solve_refined(M);
+pool_solve_one([M|Ms]) ->
+    %% Speculate on the second guess if available
+    Rest = speculate_on_worker(fun() -> 
+        try pool_solve_one(Ms)
+        catch 
+            exit:no_solution -> false
+        end
+    end),
+    case catch pool_solve_refined(M) of
+        {'EXIT', no_solution} ->
+            case worker_value_of(Rest) of
+                false -> exit(no_solution);
+                Solution -> Solution
+            end;
+        Solution ->
             Solution
     end.
 
-solve_one_collect(_, 0) ->
+limited_par_solve(M) ->
+    start_pool(erlang:system_info(schedulers)-1),
+    Solution = limited_par_solve_refined(refine(fill(M)), 0),
+    pool ! {stop, self()},
+    receive {pool, stopped} -> ok end,
+    case valid_solution(Solution) of
+        true ->
+            Solution;
+        false ->
+            exit({invalid_solution, Solution})
+    end.
+
+limited_par_solve_refined(M, Depth) ->
+    case solved(M) of
+        true ->
+            M;
+        false ->
+            limited_par_solve_one(guesses(M), Depth)
+    end.
+
+limited_par_solve_one([], _Depth) ->
     exit(no_solution);
-solve_one_collect(Ref, N) ->
-    receive
-        {Ref, {'EXIT', no_solution}} ->
-            solve_one_collect(Ref, N - 1);
-        {Ref, Solution} ->
+limited_par_solve_one([M], Depth) ->
+    limited_par_solve_refined(M, Depth);
+limited_par_solve_one([M|Ms], Depth) when Depth < 2 ->
+    % Only use parallelism for shallow depths (first few decisions)
+    Rest = speculate_on_worker(fun() -> 
+        try limited_par_solve_one(Ms, Depth+1)
+        catch 
+            exit:no_solution -> false
+        end
+    end),
+    case catch limited_par_solve_refined(M, Depth+1) of
+        {'EXIT', no_solution} ->
+            case worker_value_of(Rest) of
+                false -> exit(no_solution);
+                Solution -> Solution
+            end;
+        Solution ->
             Solution
+    end;
+limited_par_solve_one([M|Ms], _) ->
+    % Use sequential approach for deeper levels
+    case catch solve_refined(M) of
+	    {'EXIT',no_solution} ->
+	        solve_one(Ms);
+	    Solution ->
+	        Solution
     end.
 
 %% benchmarks
@@ -292,6 +393,13 @@ benchmarks(Puzzles) ->
 benchmarks() ->
   {ok,Puzzles} = file:consult("problems.txt"),
   timer:tc(?MODULE,benchmarks,[Puzzles]).
+
+benchmarks_pool(Puzzles) ->
+    [{Name,bm(fun()->limited_par_solve(M) end)} || {Name,M} <- Puzzles].
+
+benchmarks_pool() ->
+  {ok,Puzzles} = file:consult("problems.txt"),
+  timer:tc(?MODULE,benchmarks_pool,[Puzzles]).
 		      
 %% check solutions for validity
 
