@@ -261,17 +261,17 @@ work() ->
 
 speculate_on_worker(F) ->
     case whereis(pool) of
-        undefined ->
-            ok; %% we're stopping
-        Pool -> Pool ! {get_worker, self()}
+    undefined ->
+        ok; %% we're stopping
+    Pool -> Pool ! {get_worker, self()}
     end,
     receive
-        {pool, no_worker} ->
-            {not_speculating, F};
-        {pool, W} ->
-            R = make_ref(),
-            W ! {task, self(), R, F},
-            {speculating, R}
+    {pool, no_worker} ->
+        {not_speculating, F};
+    {pool, W} ->
+        R = make_ref(),
+        W ! {task, self(), R, F},
+        {speculating, R}
     end.
 
 worker_value_of({not_speculating, F}) ->
@@ -285,10 +285,7 @@ worker_value_of({speculating, R}) ->
 %% Parallel Sudoku solver using worker pool
 
 pool_solve(M) ->
-    start_pool(erlang:system_info(schedulers)-1),
     Solution = pool_solve_refined(refine(fill(M))),
-    pool ! {stop, self()},
-    receive {pool, stopped} -> ok end,
     case valid_solution(Solution) of
         true ->
             Solution;
@@ -327,10 +324,7 @@ pool_solve_one([M|Ms]) ->
     end.
 
 limited_par_solve(M) ->
-    start_pool(erlang:system_info(schedulers)-1),
     Solution = limited_par_solve_refined(refine(fill(M)), 0),
-    pool ! {stop, self()},
-    receive {pool, stopped} -> ok end,
     case valid_solution(Solution) of
         true ->
             Solution;
@@ -343,14 +337,14 @@ limited_par_solve_refined(M, Depth) ->
         true ->
             M;
         false ->
-            limited_par_solve_one(guesses(M), Depth)
+            limited_par_solve_one(guesses(M), Depth+1)
     end.
 
 limited_par_solve_one([], _Depth) ->
     exit(no_solution);
 limited_par_solve_one([M], Depth) ->
     limited_par_solve_refined(M, Depth);
-limited_par_solve_one([M|Ms], Depth) when Depth < 2 ->
+limited_par_solve_one([M|Ms], Depth) when Depth < 8 ->
     % Only use parallelism for shallow depths (first few decisions)
     Rest = speculate_on_worker(fun() -> 
         try limited_par_solve_one(Ms, Depth+1)
@@ -395,11 +389,40 @@ benchmarks() ->
   timer:tc(?MODULE,benchmarks,[Puzzles]).
 
 benchmarks_pool(Puzzles) ->
-    [{Name,bm(fun()->limited_par_solve(M) end)} || {Name,M} <- Puzzles].
+    start_pool(erlang:system_info(schedulers)-1),
+    Results = [{Name,bm(fun()->pool_solve(M) end)} || {Name,M} <- Puzzles],
+    pool ! {stop,self()},
+    receive
+        {pool, stopped} -> ok
+    end,
+    Results.
 
 benchmarks_pool() ->
   {ok,Puzzles} = file:consult("problems.txt"),
   timer:tc(?MODULE,benchmarks_pool,[Puzzles]).
+
+benchmarks_limited_pool(Puzzles) ->
+    start_pool(erlang:system_info(schedulers)-1),
+    Results = [{Name,bm(fun()->limited_par_solve(M) end)} || {Name,M} <- Puzzles],
+    pool ! {stop,self()},
+    receive
+        {pool, stopped} -> ok
+    end,
+    Results.
+
+benchmarks_limited_pool() ->
+  {ok,Puzzles} = file:consult("problems.txt"),
+  timer:tc(?MODULE,benchmarks_limited_pool,[Puzzles]).
+
+all_benchmarks() ->
+    {ok,Puzzles} = file:consult("problems.txt"),
+    % Run sequential benchmarks
+    SeqResults = timer:tc(?MODULE,benchmarks,[Puzzles]),
+    % Run parallel benchmarks
+    ParResults = timer:tc(?MODULE,benchmarks_pool,[Puzzles]),
+    % Run parallel benchmarks (limited depth)
+    LimitedResults = timer:tc(?MODULE,benchmarks_limited_pool,[Puzzles]),
+    [SeqResults, ParResults, LimitedResults].
 		      
 %% check solutions for validity
 
