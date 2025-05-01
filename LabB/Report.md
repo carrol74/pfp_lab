@@ -69,7 +69,6 @@
    | ------------------------------------------------------------ | ------------------------------------------------------------ |
    | ![image-20250422161704422](./report_img/image-20250422161704422.png) | ![image-20250422161607079](./report_img/image-20250422161607079.png) |
 
-   TODO: Performance analysis using tools?
 
 ## Parallel Solve
 
@@ -111,44 +110,43 @@
 
 2. Upon reading how the original solve works, we decided to implement 2 variation of worker pool parallelisation to speed up the run time. The 2 being `pool solve` & `limited_par solve`.
 
- 
+
 3. The `pool_solve` function seeks to parallelize every branch in the guessing phase. It does so by using a registered pool process to manage a fixed number of workers. At each branching point, one branch is explored locally while another is explored in paralell by a designating a worker to do that.
 
+   ```erlang
+   pool_solve_one([M|Ms]) ->
+   %% Speculate on remaining guesses
+   Rest = speculate_on_worker(fun() ->
+       try pool_solve_one(Ms)
+       catch exit:no_solution -> false
+       end
+   end),
+   case catch pool_solve_refined(M) of
+       {'EXIT', no_solution} ->
+           case worker_value_of(Rest) of
+               false -> exit(no_solution);
+               Solution -> Solution
+           end;
+       Solution -> Solution
+   end.
+   ```
 
-    ```erlang
-    pool_solve_one([M|Ms]) ->
-    %% Speculate on remaining guesses
-    Rest = speculate_on_worker(fun() ->
-        try pool_solve_one(Ms)
-        catch exit:no_solution -> false
-        end
-    end),
-    case catch pool_solve_refined(M) of
-        {'EXIT', no_solution} ->
-            case worker_value_of(Rest) of
-                false -> exit(no_solution);
-                Solution -> Solution
-            end;
-        Solution -> Solution
-    end.
+   After which, each speculative task is sent to an available worker from the pool via:
 
-    ```
-After which, each speculative task is sent to an available worker from the pool via:
-
-    ```erlang
-    speculate_on_worker(F) ->
-    case whereis(pool) of
-        undefined -> ok;
-        Pool -> Pool ! {get_worker, self()}
-    end,
-    receive
-        {pool, no_worker} -> {not_speculating, F};
-        {pool, W} ->
-            Ref = make_ref(),
-            W ! {task, self(), Ref, F},
-            {speculating, Ref}
-    end.
-    ```
+   ```erlang
+   speculate_on_worker(F) ->
+   case whereis(pool) of
+       undefined -> ok;
+       Pool -> Pool ! {get_worker, self()}
+   end,
+   receive
+       {pool, no_worker} -> {not_speculating, F};
+       {pool, W} ->
+           Ref = make_ref(),
+           W ! {task, self(), Ref, F},
+           {speculating, Ref}
+   end.
+   ```
 
 4. `limited_par_solve` tries to provide a more controlled parallelism. Pool solve may create unnecessary  overhead when the tree is shallow due to spwaning too many processes. This method overcoems this problem by controlling the depth of which parallelism occurs. Only guesses within the depth threshold are executed speculatively (in parallel). Deeper branches fall back to sequential execution. This aims to balance parallel speedup and overhead to create an even faster solve.
 
@@ -179,22 +177,13 @@ Increaing depth (Depth < N) allows us to control how much of the tree is searche
 
 5. As expected, our benchmarks show that the original solve is slowest, followed by `pool solve` and then `limited_par_solve` being the fastest. Their overall speeds can be seen in the screenshots where `pool solve` about doubles the speed and `limited_par_solve` about triples it.  
 
-    Original
-
-    ![benchmark_original.png](./report_img/benchmark_original.png)
-
-    Pool Solve
-        
-    ![benchmark_pool.png](./report_img/benchmark_pool.png)
-
-
-    Limited Par Solve
-
-    ![benchmark_limited_par.png](./report_img/benchmark_limited_par.png)
+    | Original                                                     | Pool Solve                                             | Limited Pool Solve                                           |
+    | ------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------ |
+    | ![benchmark_original.png](./report_img/benchmark_original.png) | ![benchmark_pool.png](./report_img/benchmark_pool.png) | ![benchmark_limited_par.png](./report_img/benchmark_limited_par.png) |
 
 As can be seen in the screenshots, the original `solve` is the slowest. This is due to exploring all branches sequentially and every wrong answer delays reaching the correct one.
 
-`pool solve` is better but not always ideal. It uses speculative parallelism at every level but it has the downside of spawning too many tasks especially on shallow trees. This causes significant overhead. A good example of `pool solve` not being optimal isn in the wildcat puzzle. As can be seen, both parallel solves are slower than the sequential one. This is due to the puzzle being already very easy and it shows how the parallel overhead outweights the benefits.
+`pool_solve` is better but not always ideal. It uses speculative parallelism at every level but it has the downside of spawning too many tasks especially on shallow trees. This causes significant overhead. A good example of `pool solve` not being optimal isn in the wildcat puzzle. As can be seen, both parallel solves are slower than the sequential one. This is due to the puzzle being already very easy and it shows how the parallel overhead outweights the benefits.
 
 
 `limited_par_solve` is the best in terms of speedups. It uses parallelism only at shallow  decisions which avoids process spam and other overheads. However, it still benefits from speculative parallelism and the ability to control the depth allows a user to find the sweet spot through some trial and error which helps balance full paralllelism and efficiency.
