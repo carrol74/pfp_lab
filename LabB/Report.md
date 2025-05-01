@@ -177,7 +177,24 @@ After which, each speculative task is sent to an available worker from the pool 
     ```
 Increaing depth (Depth < N) allows us to control how much of the tree is searched in paralell.
 
-5. As expected, our benchmarks show that the original solve is slowest, followed by `pool solve` and then `limited_par_solve` being the fastest.
+5. As expected, our benchmarks show that the original solve is slowest, followed by `pool solve` and then `limited_par_solve` being the fastest. Their overall speeds can be seen in the screenshots where `pool solve` about doubles the speed and `limited_par_solve` about triples it.  
 
     Original
+
     ![benchmark_original.png](./report_img/benchmark_original.png)
+
+    Pool Solve
+        
+    ![benchmark_pool.png](./report_img/benchmark_pool.png)
+
+
+    Limited Par Solve
+
+    ![benchmark_limited_par.png](./report_img/benchmark_limited_par.png)
+
+As can be seen in the screenshots, the original `solve` is the slowest. This is due to exploring all branches sequentially and every wrong answer delays reaching the correct one.
+
+`pool solve` is better but not always ideal. It uses speculative parallelism at every level but it has the downside of spawning too many tasks especially on shallow trees. This causes significant overhead. A good example of `pool solve` not being optimal isn in the wildcat puzzle. As can be seen, both parallel solves are slower than the sequential one. This is due to the puzzle being already very easy and it shows how the parallel overhead outweights the benefits.
+
+
+`limited_par_solve` is the best in terms of speedups. It uses parallelism only at shallow  decisions which avoids process spam and other overheads. However, it still benefits from speculative parallelism and the ability to control the depth allows a user to find the sweet spot through some trial and error which helps balance full paralllelism and efficiency.
