@@ -177,4 +177,7 @@ After which, each speculative task is sent to an available worker from the pool 
     ```
 Increaing depth (Depth < N) allows us to control how much of the tree is searched in paralell.
 
-5. 
+5. As expected, our benchmarks show that the original solve is slowest, followed by `pool solve` and then `limited_par_solve` being the fastest.
+
+    Original
+    ![benchmark_original.png](./report_img/benchmark_original.png)
