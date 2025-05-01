@@ -109,4 +109,72 @@
 
    We observed speed up differences between solving different puzzles. The solving time for the "extreme" puzzle, particularly "seventeen," increased significantly.
 
-2. TODO: try to use pool to manage spawn?
+2. Upon reading how the original solve works, we decided to implement 2 variation of worker pool parallelisation to speed up the run time. The 2 being `pool solve` & `limited_par solve`.
+
+ 
+3. The `pool_solve` function seeks to parallelize every branch in the guessing phase. It does so by using a registered pool process to manage a fixed number of workers. At each branching point, one branch is explored locally while another is explored in paralell by a designating a worker to do that.
+
+
+    ```erlang
+    pool_solve_one([M|Ms]) ->
+    %% Speculate on remaining guesses
+    Rest = speculate_on_worker(fun() ->
+        try pool_solve_one(Ms)
+        catch exit:no_solution -> false
+        end
+    end),
+    case catch pool_solve_refined(M) of
+        {'EXIT', no_solution} ->
+            case worker_value_of(Rest) of
+                false -> exit(no_solution);
+                Solution -> Solution
+            end;
+        Solution -> Solution
+    end.
+
+    ```
+After which, each speculative task is sent to an available worker from the pool via:
+
+    ```erlang
+    speculate_on_worker(F) ->
+    case whereis(pool) of
+        undefined -> ok;
+        Pool -> Pool ! {get_worker, self()}
+    end,
+    receive
+        {pool, no_worker} -> {not_speculating, F};
+        {pool, W} ->
+            Ref = make_ref(),
+            W ! {task, self(), Ref, F},
+            {speculating, Ref}
+    end.
+    ```
+
+4. `limited_par_solve` tries to provide a more controlled parallelism. Pool solve may create unnecessary  overhead when the tree is shallow due to spwaning too many processes. This method overcoems this problem by controlling the depth of which parallelism occurs. Only guesses within the depth threshold are executed speculatively (in parallel). Deeper branches fall back to sequential execution. This aims to balance parallel speedup and overhead to create an even faster solve.
+
+    ```erlang
+    limited_par_solve_one([M|Ms], Depth) when Depth < 8 ->
+    Rest = speculate_on_worker(fun() ->
+        try limited_par_solve_one(Ms, Depth + 1)
+        catch exit:no_solution -> false
+        end
+    end),
+    case catch limited_par_solve_refined(M, Depth + 1) of
+        {'EXIT', no_solution} ->
+            case worker_value_of(Rest) of
+                false -> exit(no_solution);
+                Solution -> Solution
+            end;
+        Solution -> Solution
+    end;
+    limited_par_solve_one([M|Ms], _) ->
+    %% Fallback to sequential solving
+    case catch solve_refined(M) of
+        {'EXIT', no_solution} -> solve_one(Ms);
+        Solution -> Solution
+    end.
+
+    ```
+Increaing depth (Depth < N) allows us to control how much of the tree is searched in paralell.
+
+5. 
