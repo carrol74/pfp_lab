@@ -150,7 +150,6 @@
 
 4. `limited_par_solve` tries to provide a more controlled parallelism. Pool solve may create unnecessary  overhead when the tree is shallow due to spwaning too many processes. This method overcoems this problem by controlling the depth of which parallelism occurs. Only guesses within the depth threshold are executed speculatively (in parallel). Deeper branches fall back to sequential execution. This aims to balance parallel speedup and overhead to create an even faster solve.
 
-    ```erlang
     limited_par_solve_one([M|Ms], Depth) when Depth < 8 ->
     Rest = speculate_on_worker(fun() ->
         try limited_par_solve_one(Ms, Depth + 1)
@@ -187,3 +186,35 @@ As can be seen in the screenshots, the original `solve` is the slowest. This is 
 
 
 `limited_par_solve` is the best in terms of speedups. It uses parallelism only at shallow  decisions which avoids process spam and other overheads. However, it still benefits from speculative parallelism and the ability to control the depth allows a user to find the sweet spot through some trial and error which helps balance full paralllelism and efficiency.
+
+## Parallel Benchmarking
+
+Similar to the way we parallelized our solver, we used a worker pool approach to parallelize the benchmarking as this was the main way we did so as well for our solver.
+
+1. First we use
+
+    ```erlang
+    start_pool(erlang:system_info(schedulers) - 1).
+    ```
+
+This creates the worker pool for the workers to be later dispatched to tasks.
+
+2. We Interleave the task dispatching
+
+    ```erlang
+    SeqRefs  = parallel_benchmark_tasks(seq,     fun solve/1,            Puzzles),
+    PoolRefs = parallel_benchmark_tasks(pool,    fun pool_solve/1,      Puzzles),
+    LimRefs  = parallel_benchmark_tasks(limited, fun limited_par_solve/1, Puzzles),
+    ```
+
+Each call walks through the entire puzzle with the respective solve technique. As we never tear down the pool between the different solves, all the different solves run concurrently using the worker pool as stated above.
+
+3. Result collection and teardown. After scheduling, we collect {Ref, Time} messages separately for each variant via `collect_benchmark_results`, sum and rescale the averages back into raw totals, then cleanly shut down the pool.
+
+    ```erlang
+    pool ! {stop, self()},
+    receive {pool, stopped} -> ok end
+    ```
+This design maximizes CPU utilization by letting every puzzle be timed in parallel.
+
+
