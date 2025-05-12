@@ -480,12 +480,12 @@ run_parallel_benchmarks() ->
     %% 1) Start the pool
     start_pool(erlang:system_info(schedulers) - 1),
 
-    %% 2) Schedule the tasks (always returns [{Name,Ref}])
+    %% 2) Schedule the tasks 
     SeqRefs  = parallel_benchmark_tasks(seq,     fun solve/1,            Puzzles),
     PoolRefs = parallel_benchmark_tasks(pool,    fun pool_solve/1,      Puzzles),
     LimRefs  = parallel_benchmark_tasks(limited, fun limited_par_solve/1, Puzzles),
 
-    %% 3) Collect each set of results (these Ts are in ms, averaged per Execs)
+    %% 3) Collect each set of results 
     SeqResults  = collect_benchmark_results(SeqRefs),
     PoolResults = collect_benchmark_results(PoolRefs),
     LimResults  = collect_benchmark_results(LimRefs),
@@ -495,7 +495,7 @@ run_parallel_benchmarks() ->
     PoolAvgTotal = lists:sum([ T || {_,T} <- PoolResults ]),
     LimAvgTotal  = lists:sum([ T || {_,T} <- LimResults ]),
 
-    %% 5) Convert back to the _raw_ total over all iterations
+    %% 5) Get total time for entire duration of N solves by multiplying by N
     SeqRawTotal  = SeqAvgTotal  * Execs,
     PoolRawTotal = PoolAvgTotal * Execs,
     LimRawTotal  = LimAvgTotal  * Execs,
