@@ -218,3 +218,11 @@ Each call walks through the entire puzzle with the respective solve technique. A
 This design maximizes CPU utilization by letting every puzzle be timed in parallel.
 
 
+4. Results of the parallel benchmarking
+
+  | Original                                                     | 
+  | ------------------------------------------------------------ | 
+  | ![paralell_benchmark](./report_img/paralell_benchmark.png) |
+
+As can be seen, compared to the benchmarks that were run not in parallel, this more efficient CPU usage resulting from the parallelization of the benchmarking has cause significant speedups across the board to the time it takes to benchmark N number of solves for each different solve type.
+
