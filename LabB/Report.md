@@ -215,3 +215,4 @@ We use spawn link to parallelize our benchmark and we compare the benchmark and 
    | ------------------------------------------------------------ | ------------------------------------------------------------ |
    | ![benchmark_original](./report_img/benchmark_original.png) | ![benchmark_original_parallel](./report_img/benchmark_original_parallel.png) |
 
+This shows that the parallel benchmarking resulted in about a 10 percent increase as compared to the original benchmark. 
