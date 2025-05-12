@@ -426,92 +426,27 @@ all_benchmarks() ->
 
 
 %Parallel Benchmarking
-parallel_benchmarks(FunName, SolverFun, Puzzles) ->
-    start_pool(erlang:system_info(schedulers) - 1),
-    Results = parallel_benchmark_tasks(FunName, SolverFun, Puzzles),
-    pool ! {stop, self()},
-    receive
-        {pool, stopped} -> ok
-    end,
-    Results.
+parallel_benchmarks(Puzzles) ->
+    Parent = self(),
+    [spawn_link(fun() ->    
+        Result = bm(fun() -> solve(M) end),
+        Parent ! {Name, Result}
+     end) || {Name, M} <- Puzzles],
 
-parallel_benchmark_tasks(_FunName, _SolverFun, []) ->
-    [];
-parallel_benchmark_tasks(FunName, SolverFun, [{Name, M} | Rest]) ->
-    Ref = make_ref(),
-    WorkerFun = fun() -> bm(fun() -> SolverFun(M) end) end,
-
-    %% Try to get a pool worker
-    case whereis(pool) of
-        undefined ->
-            %% No pool at all: do work now and send result
-            Time = WorkerFun(),
-            self() ! {Ref, Time},
-            [{Name, Ref} | parallel_benchmark_tasks(FunName, SolverFun, Rest)];
-
-        PoolPid ->
-            PoolPid ! {get_worker, self()},
+    Collect = fun
+        Collect(0, Acc) -> Acc;
+        Collect(N, Acc) ->
             receive
-                {pool, no_worker} ->
-                    %% Pool exists but no idle worker: fallback
-                    Time = WorkerFun(),
-                    self() ! {Ref, Time},
-                    [{Name, Ref} | parallel_benchmark_tasks(FunName, SolverFun, Rest)];
-
-                {pool, WorkerPid} ->
-                    %% Got a real worker: dispatch
-                    WorkerPid ! {task, self(), Ref, WorkerFun},
-                    [{Name, Ref} | parallel_benchmark_tasks(FunName, SolverFun, Rest)]
+                {Name, Result} -> Collect(N-1, [{Name, Result} | Acc])
             end
-    end.
+    end,
 
+    Collect(length(Puzzles), []).
 
-collect_benchmark_results([]) -> [];
-collect_benchmark_results([{Name, R} | Rest]) ->
-    receive
-        {R, Time} -> [{Name, Time} | collect_benchmark_results(Rest)]
-    end.
+parallel_benchmarks() ->
+  {ok,Puzzles} = file:consult("problems.txt"),
+  timer:tc(?MODULE,parallel_benchmarks,[Puzzles]).
 
-
-run_parallel_benchmarks() ->
-    {ok, Puzzles} = file:consult("problems.txt"),
-    Execs = ?EXECUTIONS,
-
-    %% 1) Start the pool
-    start_pool(erlang:system_info(schedulers) - 1),
-
-    %% 2) Schedule the tasks 
-    SeqRefs  = parallel_benchmark_tasks(seq,     fun solve/1,            Puzzles),
-    PoolRefs = parallel_benchmark_tasks(pool,    fun pool_solve/1,      Puzzles),
-    LimRefs  = parallel_benchmark_tasks(limited, fun limited_par_solve/1, Puzzles),
-
-    %% 3) Collect each set of results 
-    SeqResults  = collect_benchmark_results(SeqRefs),
-    PoolResults = collect_benchmark_results(PoolRefs),
-    LimResults  = collect_benchmark_results(LimRefs),
-
-    %% 4) Sum up the _average_ times
-    SeqAvgTotal  = lists:sum([ T || {_,T} <- SeqResults ]),
-    PoolAvgTotal = lists:sum([ T || {_,T} <- PoolResults ]),
-    LimAvgTotal  = lists:sum([ T || {_,T} <- LimResults ]),
-
-    %% 5) Get total time for entire duration of N solves by multiplying by N
-    SeqRawTotal  = SeqAvgTotal  * Execs,
-    PoolRawTotal = PoolAvgTotal * Execs,
-    LimRawTotal  = LimAvgTotal  * Execs,
-
-    %% 6) Tear down the pool
-    pool ! {stop, self()},
-    receive {pool, stopped} -> ok end,
-
-    %% 7) Print Results
-    [
-      {SeqRawTotal,  SeqResults},
-      {PoolRawTotal, PoolResults},
-      {LimRawTotal,  LimResults}
-    ].
-
-		      
 %% check solutions for validity
 
 valid_rows(M) ->
